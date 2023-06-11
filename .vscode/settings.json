@@ -1,0 +1,6 @@
+{
+  "python.formatting.provider": "black",
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "editor.formatOnPaste": false
+}
