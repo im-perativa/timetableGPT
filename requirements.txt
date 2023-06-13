@@ -1,6 +1,8 @@
 streamlit
 langchain
 openai
-google-search-results
-anthropic
 streamlit-chat
+tiktoken
+openpyxl
+black
+chromadb
