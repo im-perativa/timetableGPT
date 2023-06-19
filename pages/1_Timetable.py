@@ -1,7 +1,5 @@
 import pandas as pd
 import streamlit as st
-from langchain.docstore.document import Document
-from langchain.text_splitter import CharacterTextSplitter
 
 
 @st.cache_data
@@ -18,7 +16,7 @@ uploaded_file = st.file_uploader(
 
 st.session_state["uploaded_file"]
 
-dataframe = None
+dataframe = pd.DataFrame(columns=["person", "datetime_start", "datetime_end", "room"])
 
 if uploaded_file is not None:
     dataframe = pd.read_excel(
@@ -29,46 +27,26 @@ elif "timetable" in st.session_state:
         ["person", "datetime_start", "datetime_end", "room"]
     ]
 
-if dataframe is not None:
-    timetable = st.data_editor(
-        dataframe,
-        column_config={
-            "datetime_start": st.column_config.DatetimeColumn(
-                label="Date Start", format="D MMM YYYY, h:mm a", step=60, required=True
-            ),
-            "datetime_end": st.column_config.DatetimeColumn(
-                label="Date End", format="D MMM YYYY, h:mm a", step=60, required=True
-            ),
-            "person": st.column_config.TextColumn(
-                label="Person", max_chars=50, required=True
-            ),
-            "room": st.column_config.TextColumn(
-                label="Room", max_chars=50, required=True
-            ),
-        },
-        hide_index=True,
-        use_container_width=True,
-        num_rows="dynamic",
-    )
+timetable = st.data_editor(
+    dataframe,
+    column_config={
+        "datetime_start": st.column_config.DatetimeColumn(
+            label="Date Start", format="D MMM YYYY, h:mm a", step=60, required=True
+        ),
+        "datetime_end": st.column_config.DatetimeColumn(
+            label="Date End", format="D MMM YYYY, h:mm a", step=60, required=True
+        ),
+        "person": st.column_config.TextColumn(
+            label="Person", max_chars=50, required=True
+        ),
+        "room": st.column_config.TextColumn(label="Room", max_chars=50, required=True),
+    },
+    hide_index=True,
+    use_container_width=True,
+    num_rows="dynamic",
+)
 
-    timetable["prompt"] = (
-        timetable["person"]
-        + " and room "
-        + timetable["room"]
-        + " is occupied from "
-        + timetable["datetime_start"].dt.strftime("%A, %d %B %Y %H:%M:%S %Z")
-        + " to "
-        + timetable["datetime_end"].dt.strftime("%A, %d %B %Y %H:%M:%S %Z")
-        + "."
-    )
-
-    timetable_docs = "\n\n".join(timetable["prompt"])
-    documents = Document(page_content=timetable_docs)
-    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-    texts = text_splitter.split_documents([documents])
-
-    st.session_state["timetable"] = timetable
-    st.session_state["texts"] = texts
+st.session_state["timetable"] = timetable
 
 if "timetable" in st.session_state:
     csv = convert_df(st.session_state["timetable"])

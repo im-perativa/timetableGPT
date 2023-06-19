@@ -1,43 +1,314 @@
+import datetime
+import time
+from enum import Enum
+from typing import Optional, Type
+
 import streamlit as st
-from langchain import OpenAI
-from langchain.chains import ConversationalRetrievalChain, LLMChain
-from langchain.chains.question_answering import load_qa_chain
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.agents import AgentExecutor
+from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    PromptTemplate,
-    SystemMessagePromptTemplate,
-)
-from langchain.vectorstores import Chroma
+from langchain.schema import SystemMessage
+from langchain.tools import BaseTool, format_tool_to_openai_function
+from pydantic import BaseModel, Field
 from streamlit_chat import message
 
-_template = """
-You are an assistant to help user with a Timetable document.
-Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
-Chat History:
-{chat_history}
-Follow Up Input: {question}
-Standalone question in user language:"""
-CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(_template)
+# Classes
+class InstanceTypeEnum(str, Enum):
+    PERSON = "person"
+    ROOM = "room"
 
-template = """
-You are an assistant to help user with a Timetable document. 
-The timetable document contains information of what time a person and a room will be occupied.
-Outside of the information stored in timetable, it is assumed that a person and room is free.
-You cannot use the room at specific time if the room is occupied at the same time.
-You cannot schedule a meeting with a person at specific time if the person is occupied at the same time.
-If the question is not the Timetable document, politely inform them that you are tuned to only answer questions about Timetable.
-Question: {question}
-=========
-{context}
-=========
-Answer in user language:
-"""
 
-QA_PROMPT = PromptTemplate(template=template, input_variables=["question", "context"])
+class TimetableInstanceFinderInput(BaseModel):
+    """Input for Timetable check."""
+
+    instance_type: InstanceTypeEnum = Field(
+        ...,
+        description="Type of object you want to search from the Timetable (person or room)",
+    )
+    query: str = Field(
+        ...,
+        description="Optional query to filter the result of object you want to search from the Timetable (person or room)",
+    )
+
+
+class TimetableCheckInput(BaseModel):
+    """Input for Timetable check."""
+
+    person_requested: list[str] = Field(
+        ..., description="List of person name to search the Timetable"
+    )
+    datetime_start_requested: datetime.datetime = Field(
+        ..., description="Start date and start time specification from user request"
+    )
+    datetime_end_requested: datetime.datetime = Field(
+        ..., description="End date and end time specification from user request"
+    )
+    room_requested: list[str] = Field(
+        ..., description="List of room name to search in the Timetable"
+    )
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+# Functions
+def get_availability(
+    person_requested=[],
+    datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(9999, 12, 31, 0, 0, 0),
+    room_requested=[],
+):
+    timetable_df = st.session_state["timetable"]
+    timetable_df["initial_prompt_person"] = timetable_df["person"] + " is available."
+    timetable_df["initial_prompt_room"] = timetable_df["room"] + " is available."
+    initial_prompt = (
+        "\n".join(timetable_df["initial_prompt_person"].sort_values().unique())
+        + "\n"
+        + "\n".join(timetable_df["initial_prompt_room"].sort_values().unique())
+    )
+
+    if len(person_requested) > 0:
+        timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
+
+    if len(room_requested) > 0:
+        timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
+
+    timetable_df = timetable_df[
+        (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_start"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_end"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] <= datetime_start_requested)
+            & (timetable_df["datetime_end"] >= datetime_end_requested)
+        )
+    ]
+    timetable_df["prompt"] = (
+        timetable_df["person"]
+        + " and room "
+        + timetable_df["room"]
+        + " is unavailable from "
+        + timetable_df["datetime_start"].dt.strftime("%d %B %Y %H:%M:%S")
+        + " to "
+        + timetable_df["datetime_end"].dt.strftime("%d %B %Y %H:%M:%S")
+        + "."
+    )
+
+    return initial_prompt + "\n" + "\n".join(timetable_df["prompt"])
+
+
+def filter_timetable(
+    person_requested=[],
+    datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(9999, 12, 31, 0, 0, 0),
+    room_requested=[],
+):
+    timetable_df = st.session_state["timetable"]
+    if len(person_requested) > 0:
+        timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
+    if len(room_requested) > 0:
+        timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
+
+    timetable_df = timetable_df[
+        (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_start"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_end"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] <= datetime_start_requested)
+            & (timetable_df["datetime_end"] >= datetime_end_requested)
+        )
+    ]
+    timetable_df["prompt"] = (
+        timetable_df["person"]
+        + " has a schedule from "
+        + timetable_df["datetime_start"].dt.strftime("%d %B %Y %H:%M:%S")
+        + " to "
+        + timetable_df["datetime_end"].dt.strftime("%d %B %Y %H:%M:%S")
+        + " at room "
+        + timetable_df["room"]
+        + "."
+    )
+
+    return "\n".join(timetable_df["prompt"])
+
+
+def get_conflict_status(
+    person_requested=[],
+    datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    room_requested=[],
+):
+    timetable_df = st.session_state["timetable"]
+
+    if len(person_requested) > 0:
+        timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
+    if len(room_requested) > 0:
+        timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
+
+    timetable_df = timetable_df[
+        (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_start"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_end"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] <= datetime_start_requested)
+            & (timetable_df["datetime_end"] >= datetime_end_requested)
+        )
+    ]
+
+    return (
+        "There is a conflict in the timetable"
+        if (timetable_df.shape[0] > 0)
+        else "There is no conflict in the timetable"
+    )
+
+
+# Tools
+class TimetableAvailabilityTool(BaseTool):
+    name = "timetable_availability"
+    description = "Useful for when you need to find the availability of a person and/or room based on specific date and time from user request"
+
+    def _run(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        result = get_availability(
+            person_requested,
+            datetime_start_requested,
+            datetime_end_requested,
+            room_requested,
+        )
+
+        return result
+
+    def _arun(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        raise NotImplementedError("This tool does not support async")
+
+    args_schema: Optional[Type[BaseModel]] = TimetableCheckInput
+
+
+class TimetableFilterTool(BaseTool):
+    name = "timetable_filter"
+    description = "Useful for when you need to filter the timetable to find a schedule for specific person, room or datetime based on user request"
+
+    def _run(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        result = filter_timetable(
+            person_requested,
+            datetime_start_requested,
+            datetime_end_requested,
+            room_requested,
+        )
+
+        return result
+
+    def _arun(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        raise NotImplementedError("This tool does not support async")
+
+    args_schema: Optional[Type[BaseModel]] = TimetableCheckInput
+
+
+class TimetableConflictCheckerTool(BaseTool):
+    name = "timetable_check_conflict"
+    description = "Useful for when you need to find if there's a conflict between user request and existing schedule listed in the timetable"
+
+    def _run(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        result = get_conflict_status(
+            person_requested,
+            datetime_start_requested,
+            datetime_end_requested,
+            room_requested,
+        )
+
+        return result
+
+    def _arun(
+        self,
+        person_requested: list[str],
+        datetime_start_requested: datetime.datetime,
+        datetime_end_requested: datetime.datetime,
+        room_requested: list[str],
+    ):
+        raise NotImplementedError("This tool does not support async")
+
+    args_schema: Optional[Type[BaseModel]] = TimetableCheckInput
+
+
+tools = [
+    TimetableConflictCheckerTool(),
+    TimetableAvailabilityTool(),
+    TimetableFilterTool(),
+]
+functions = [format_tool_to_openai_function(tool) for tool in tools]
+
+prompt = OpenAIFunctionsAgent.create_prompt(
+    system_message=SystemMessage(
+        content="""
+        You are a helpful assistant who is expert with time management and can handle multiple PERSON and/or ROOM schedule so that no schedule will overlap each other.
+        You DO NOT answer anything unrelated to timetable and politely informs that you are programmed to only answer timetable related questions.
+        ============
+        While helping USER managing Timetable, keep in mind that:
+        1 - USER cannot schedule to occupy a ROOM if the ROOM is unavailable.
+        2 - USER cannot schedule a meeting with a PERSON if the PERSON is unavailable.
+        3 - Similarly, each PERSON listed in the Timetable cannot schedule to meet with other PERSON if one of them is unavailable.
+        4 - Outside of the schedule information listed in the Timetable, all PERSON and all ROOM listed in the Timetable is available.
+        ============
+        """
+    )
+)
 
 with st.sidebar:
     openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key")
@@ -48,10 +319,9 @@ st.title("📆 Timetable GPT")
 
 st.session_state
 
-if "texts" in st.session_state:
-    embeddings = OpenAIEmbeddings(client="timetableGPT", openai_api_key=openai_api_key)
-    docsearch = Chroma.from_documents(st.session_state["texts"], embeddings)
-else:
+if "timetable" not in st.session_state:
+    st.error("Please input your Timetable first")
+elif st.session_state["timetable"].shape[0] == 0:
     st.error("Please input your Timetable first")
 
 if "messages" not in st.session_state:
@@ -66,7 +336,7 @@ with st.form("chat_input", clear_on_submit=True):
     a, b = st.columns([4, 1])
     user_input = a.text_input(
         label="Your message:",
-        placeholder="What would you like to say?",
+        placeholder="What would you like to know about the Timetable?",
         label_visibility="collapsed",
     )
     b.form_submit_button("Send", use_container_width=True)
@@ -78,33 +348,26 @@ if user_input and not openai_api_key:
     st.info("Please add your OpenAI API key to continue.")
 
 
-def generate_response(input_text, chat_history):
-    qa = ConversationalRetrievalChain.from_llm(
-        llm=OpenAI(
-            client="timetableGPT",
-            openai_api_key=openai_api_key,
-        ),
-        retriever=docsearch.as_retriever(),
-        condense_question_prompt=CONDENSE_QUESTION_PROMPT,
-        memory=ConversationBufferMemory(
-            memory_key="chat_history",
-            input_key="question",
-            output_key="answer",
-            return_messages=True,
-        ),
-        chain_type="stuff",
-        combine_docs_chain_kwargs={"prompt": QA_PROMPT},
-        verbose=True,
+def generate_response(input_text):
+    llm = ChatOpenAI(
+        client="TimetableGPT",
+        temperature=0,
+        model="gpt-3.5-turbo-16k-0613",
+        openai_api_key=openai_api_key,
     )
-    return qa({"question": input_text, "chat_history": chat_history})
+    open_ai_agent = OpenAIFunctionsAgent(tools=tools, llm=llm, prompt=prompt)
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+    open_ai_agent_executor = AgentExecutor.from_agent_and_tools(
+        agent=open_ai_agent, tools=tools, verbose=True, memory=memory
+    )
+
+    return open_ai_agent_executor.run(input_text)
 
 
 if user_input and openai_api_key:
     st.session_state["messages"].append({"role": "user", "content": user_input})
-    message(user_input, is_user=True)
-    response = generate_response(user_input, st.session_state["chat_history"])
-    st.session_state["chat_history"].append(response["chat_history"])
-    st.session_state["messages"].append(
-        {"role": "assistant", "content": response["answer"]}
-    )
-    message(response["answer"])
+    message(user_input, is_user=True, key=str(time.time_ns()))
+    response = generate_response(user_input)
+    st.session_state["messages"].append({"role": "assistant", "content": response})
+    message(response, key=str(time.time_ns()))
