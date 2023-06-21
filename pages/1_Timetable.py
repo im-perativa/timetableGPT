@@ -14,8 +14,6 @@ uploaded_file = st.file_uploader(
     "Choose an Excel file", type=[".xlsx", ".xls"], key="uploaded_file"
 )
 
-st.session_state["uploaded_file"]
-
 dataframe = pd.DataFrame(columns=["person", "datetime_start", "datetime_end", "room"])
 
 if uploaded_file is not None:

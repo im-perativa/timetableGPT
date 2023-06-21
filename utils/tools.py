@@ -9,20 +9,42 @@ from utils.classes import TimetableCheckInput
 
 
 # Functions
+def _filter_intersection(
+    timetable_df, datetime_start_requested, datetime_end_requested
+):
+    return timetable_df[
+        (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] >= datetime_start_requested)
+            & (timetable_df["datetime_start"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_end"] >= datetime_start_requested)
+            & (timetable_df["datetime_end"] <= datetime_end_requested)
+        )
+        | (
+            (timetable_df["datetime_start"] <= datetime_start_requested)
+            & (timetable_df["datetime_end"] >= datetime_end_requested)
+        )
+    ]
+
+
 def get_availability(
     person_requested=[],
     datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
-    datetime_end_requested=datetime.datetime(9999, 12, 31, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
     room_requested=[],
 ):
     timetable_df = st.session_state["timetable"]
-    timetable_df["initial_prompt_person"] = timetable_df["person"] + " is available."
-    timetable_df["initial_prompt_room"] = (
-        "room " + timetable_df["room"] + " is available."
-    )
+    timetable_df["initial_prompt_person"] = timetable_df["person"]
+    timetable_df["initial_prompt_room"] = "Room " + timetable_df["room"]
     initial_prompt = (
-        "\n".join(timetable_df["initial_prompt_person"].sort_values().unique())
-        + "\n"
+        "List of possible person in the Timetable are: \n"
+        + "\n".join(timetable_df["initial_prompt_person"].sort_values().unique())
+        + "\n\nList of possible room in the Timetable are: \n"
         + "\n".join(timetable_df["initial_prompt_room"].sort_values().unique())
     )
 
@@ -32,42 +54,27 @@ def get_availability(
     if len(room_requested) > 0:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
-    timetable_df = timetable_df[
-        (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_start"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_end"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] <= datetime_start_requested)
-            & (timetable_df["datetime_end"] >= datetime_end_requested)
-        )
-    ]
-    timetable_df["prompt"] = (
-        timetable_df["person"]
-        + " and room "
-        + timetable_df["room"]
-        + " is unavailable from "
-        + timetable_df["datetime_start"].dt.strftime("%d %B %Y %H:%M:%S")
-        + " to "
-        + timetable_df["datetime_end"].dt.strftime("%d %B %Y %H:%M:%S")
-        + "."
+    timetable_df = _filter_intersection(
+        timetable_df, datetime_start_requested, datetime_end_requested
+    )
+    timetable_df["prompt_person"] = timetable_df["person"] + " is unavailable/occupied."
+    timetable_df["prompt_room"] = (
+        "Room " + timetable_df["room"] + " is unavailable/occupied."
     )
 
-    return initial_prompt + "\n" + "\n".join(timetable_df["prompt"])
+    return (
+        initial_prompt
+        + "\n\nThe inavailability list are specified below:\n"
+        + "\n".join(timetable_df["prompt_person"].unique())
+        + "\n"
+        + "\n".join(timetable_df["prompt_room"].unique())
+    )
 
 
 def filter_timetable(
     person_requested=[],
     datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
-    datetime_end_requested=datetime.datetime(9999, 12, 31, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(9999, 1, 1, 0, 0, 0),
     room_requested=[],
 ):
     timetable_df = st.session_state["timetable"]
@@ -76,24 +83,9 @@ def filter_timetable(
     if len(room_requested) > 0:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
-    timetable_df = timetable_df[
-        (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_start"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_end"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] <= datetime_start_requested)
-            & (timetable_df["datetime_end"] >= datetime_end_requested)
-        )
-    ]
+    timetable_df = _filter_intersection(
+        timetable_df, datetime_start_requested, datetime_end_requested
+    )
     timetable_df["prompt"] = (
         timetable_df["person"]
         + " has a schedule from "
@@ -121,24 +113,9 @@ def get_conflict_status(
     if len(room_requested) > 0:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
-    timetable_df = timetable_df[
-        (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_start"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_end"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] <= datetime_start_requested)
-            & (timetable_df["datetime_end"] >= datetime_end_requested)
-        )
-    ]
+    timetable_df = _filter_intersection(
+        timetable_df, datetime_start_requested, datetime_end_requested
+    )
 
     return (
         "There is a conflict in the timetable"
@@ -154,10 +131,14 @@ class TimetableAvailabilityTool(BaseTool):
 
     def _run(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: list[str] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        room_requested: list[str] = [],
     ):
         result = get_availability(
             person_requested,
@@ -186,10 +167,14 @@ class TimetableFilterTool(BaseTool):
 
     def _run(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: list[str] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            9999, 1, 1, 0, 0, 0
+        ),
+        room_requested: list[str] = [],
     ):
         result = filter_timetable(
             person_requested,
@@ -218,10 +203,14 @@ class TimetableConflictCheckerTool(BaseTool):
 
     def _run(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: list[str] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        room_requested: list[str] = [],
     ):
         result = get_conflict_status(
             person_requested,

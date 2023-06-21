@@ -1,6 +1,7 @@
 # Classes
 import datetime
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,9 +18,9 @@ class TimetableInstanceFinderInput(BaseModel):
         ...,
         description="Type of object you want to search from the Timetable (person or room)",
     )
-    query: str = Field(
+    not_available_list: list[str] = Field(
         ...,
-        description="Optional query to filter the result of object you want to search from the Timetable (person or room)",
+        description="List of person or room name to exclude because of their inavailability",
     )
 
 
@@ -29,11 +30,13 @@ class TimetableCheckInput(BaseModel):
     person_requested: list[str] = Field(
         ..., description="List of person name to search the Timetable"
     )
-    datetime_start_requested: datetime.datetime = Field(
-        ..., description="Start date and start time specification from user request"
+    datetime_start_requested: Optional[datetime.datetime] = Field(
+        default=datetime.datetime(1970, 1, 1, 0, 0, 0),
+        description="Start date and start time specification from user request",
     )
-    datetime_end_requested: datetime.datetime = Field(
-        ..., description="End date and end time specification from user request"
+    datetime_end_requested: Optional[datetime.datetime] = Field(
+        default=datetime.datetime(1970, 1, 1, 0, 0, 0),
+        description="End date and end time specification from user request",
     )
     room_requested: list[str] = Field(
         ..., description="List of room name to search in the Timetable"

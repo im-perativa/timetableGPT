@@ -5,6 +5,7 @@ from langchain.agents import AgentExecutor
 from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
+from langchain.prompts import MessagesPlaceholder
 from langchain.schema import SystemMessage
 from langchain.tools import format_tool_to_openai_function
 from streamlit_chat import message
@@ -45,6 +46,7 @@ with st.sidebar:
         "OpenAI API Key",
         key="chatbot_api_key",
         help="You can get your API key from https://platform.openai.com/account/api-keys.",
+        type="password",
     )
     st.markdown(
         "## How to use\n"
@@ -88,21 +90,34 @@ for msg in st.session_state["messages"]:
 if user_input and not openai_api_key:
     st.info("Please add your OpenAI API key to continue.")
 
-
-def generate_response(input_text):
+if openai_api_key:
     llm = ChatOpenAI(
         client="TimetableGPT",
         temperature=0,
         model="gpt-3.5-turbo-16k-0613",
         openai_api_key=openai_api_key,
     )
-    open_ai_agent = OpenAIFunctionsAgent(tools=tools, llm=llm, prompt=prompt)
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-    open_ai_agent_executor = AgentExecutor.from_agent_and_tools(
-        agent=open_ai_agent, tools=tools, verbose=True, memory=memory
+    agent_kwargs = {
+        "extra_prompt_messages": [MessagesPlaceholder(variable_name="chat_history")],
+    }
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    open_ai_agent = OpenAIFunctionsAgent(
+        tools=tools,
+        llm=llm,
+        prompt=prompt,
     )
 
+    open_ai_agent_executor = AgentExecutor.from_agent_and_tools(
+        agent=open_ai_agent,
+        tools=tools,
+        verbose=True,
+        memory=memory,
+        kwargs=agent_kwargs,
+    )
+
+
+def generate_response(input_text):
     return open_ai_agent_executor.run(input_text)
 
 
