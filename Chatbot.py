@@ -41,15 +41,35 @@ prompt = OpenAIFunctionsAgent.create_prompt(
     )
 )
 
+
+def callback_function(state, key):
+    st.session_state[state] = st.session_state[key]
+
+
+st.set_page_config(
+    page_title="TimetableGPT",
+    page_icon="📆",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+if "openai_api_key_value" not in st.session_state:
+    st.session_state["openai_api_key_value"] = ""
+
 with st.sidebar:
     openai_api_key = st.text_input(
         "OpenAI API Key",
-        key="chatbot_api_key",
+        key="openai_api_key",
         help="You can get your API key from https://platform.openai.com/account/api-keys.",
         type="password",
+        on_change=callback_function,
+        args=("openai_api_key_value", "openai_api_key"),
+        value=st.session_state["openai_api_key_value"]
+        if "openai_api_key_value" in st.session_state
+        else "",
     )
     st.markdown(
-        "## How to use\n"
+        "# How to use\n"
         "1. Enter your [OpenAI API key](https://platform.openai.com/account/api-keys) below🔑\n"
         "2. Create, upload, or use existing template for your Timetable📆\n"
         "3. Ask a question about the timetable💬\n"
@@ -94,7 +114,7 @@ if openai_api_key:
     llm = ChatOpenAI(
         client="TimetableGPT",
         temperature=0,
-        model="gpt-3.5-turbo-16k-0613",
+        model="gpt-3.5-turbo-0613",
         openai_api_key=openai_api_key,
     )
 
