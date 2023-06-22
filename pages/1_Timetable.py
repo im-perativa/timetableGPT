@@ -14,7 +14,8 @@ uploaded_file = st.file_uploader(
     "Choose an Excel file", type=[".xlsx", ".xls"], key="uploaded_file"
 )
 
-dataframe = pd.DataFrame(columns=["person", "datetime_start", "datetime_end", "room"])
+# dataframe = pd.DataFrame(columns=["person", "datetime_start", "datetime_end", "room"])
+dataframe = pd.read_excel("sample.xlsx", parse_dates=["datetime_start", "datetime_end"])
 
 if uploaded_file is not None:
     dataframe = pd.read_excel(
