@@ -27,8 +27,8 @@ class TimetableInstanceFinderInput(BaseModel):
 class TimetableCheckInput(BaseModel):
     """Input for Timetable check."""
 
-    person_requested: list[str] = Field(
-        ..., description="List of person name to search the Timetable"
+    person_requested: Optional[list[str]] = Field(
+        default=[], description="List of person name to search in the Timetable"
     )
     datetime_start_requested: Optional[datetime.datetime] = Field(
         default=datetime.datetime(1970, 1, 1, 0, 0, 0),
@@ -38,8 +38,8 @@ class TimetableCheckInput(BaseModel):
         default=datetime.datetime(1970, 1, 1, 0, 0, 0),
         description="End date and end time specification from user request",
     )
-    room_requested: list[str] = Field(
-        ..., description="List of room name to search in the Timetable"
+    room_requested: Optional[list[str]] = Field(
+        default=[], description="List of room name to search in the Timetable"
     )
 
     class Config:

@@ -29,7 +29,7 @@ def _filter_intersection(
             (timetable_df["datetime_start"] <= datetime_start_requested)
             & (timetable_df["datetime_end"] >= datetime_end_requested)
         )
-    ]
+    ].sort_values(["datetime_start", "datetime_end"])
 
 
 def get_availability(
@@ -39,12 +39,12 @@ def get_availability(
     room_requested=[],
 ):
     timetable_df = st.session_state["timetable"]
-    timetable_df["initial_prompt_person"] = timetable_df["person"]
-    timetable_df["initial_prompt_room"] = "Room " + timetable_df["room"]
+    timetable_df["initial_prompt_person"] = "- " + timetable_df["person"]
+    timetable_df["initial_prompt_room"] = "- " + "Room " + timetable_df["room"]
     initial_prompt = (
-        "List of possible person in the Timetable are: \n"
+        "List of person in the Timetable are: \n```\n"
         + "\n".join(timetable_df["initial_prompt_person"].sort_values().unique())
-        + "\n\nList of possible room in the Timetable are: \n"
+        + "\n```\n\nList of room in the Timetable are: \n```\n"
         + "\n".join(timetable_df["initial_prompt_room"].sort_values().unique())
     )
 
@@ -54,20 +54,38 @@ def get_availability(
     if len(room_requested) > 0:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
-    timetable_df = _filter_intersection(
+    timetable_intersect_df = _filter_intersection(
         timetable_df, datetime_start_requested, datetime_end_requested
     )
-    timetable_df["prompt_person"] = timetable_df["person"] + " is unavailable/occupied."
-    timetable_df["prompt_room"] = (
-        "Room " + timetable_df["room"] + " is unavailable/occupied."
+    timetable_intersect_df["prompt"] = (
+        "-- "
+        + timetable_intersect_df["datetime_start"].dt.strftime("%H:%M:%S")
+        + " to "
+        + timetable_intersect_df["datetime_end"].dt.strftime("%H:%M:%S")
     )
+
+    person = (
+        timetable_intersect_df[["person", "prompt"]]
+        .groupby(["person"], as_index=False)
+        .agg({"prompt": "\n".join})
+    )
+    person["prompt_person"] = (
+        "- " + person["person"] + " is unavailable/occupied from: \n" + person["prompt"]
+    )
+    room = (
+        timetable_intersect_df[["room", "prompt"]]
+        .groupby(["room"], as_index=False)
+        .agg({"prompt": "\n".join})
+    )
+    room["prompt_room"] = "- " + "Room " + room["room"] + " is unavailable/occupied."
 
     return (
         initial_prompt
-        + "\n\nThe inavailability list are specified below:\n"
-        + "\n".join(timetable_df["prompt_person"].unique())
-        + "\n"
-        + "\n".join(timetable_df["prompt_room"].unique())
+        + "\n\nPerson inavailability list are specified below:\n\n```\n"
+        + "\n".join(person["prompt_person"].sort_values().unique())
+        + "\n```\n\nRoom inavailability list are specified below:\n\n```\n"
+        + "\n".join(room["prompt_room"].sort_values().unique())
+        + "\n```"
     )
 
 
@@ -89,12 +107,12 @@ def filter_timetable(
     timetable_df["prompt"] = (
         timetable_df["person"]
         + " has a schedule from "
-        + timetable_df["datetime_start"].dt.strftime("%d %B %Y %H:%M:%S")
+        + timetable_df["datetime_start"].dt.strftime("%H:%M:%S")
         + " to "
-        + timetable_df["datetime_end"].dt.strftime("%d %B %Y %H:%M:%S")
+        + timetable_df["datetime_end"].dt.strftime("%H:%M:%S")
         + " at room "
         + timetable_df["room"]
-        + "."
+        + " and thus unavailable/occupied at that time."
     )
 
     return "\n".join(timetable_df["prompt"])
@@ -131,14 +149,14 @@ class TimetableAvailabilityTool(BaseTool):
 
     def _run(
         self,
-        person_requested: list[str] = [],
+        person_requested: Optional[list[str]] = [],
         datetime_start_requested: datetime.datetime = datetime.datetime(
             1970, 1, 1, 0, 0, 0
         ),
         datetime_end_requested: datetime.datetime = datetime.datetime(
             1970, 1, 1, 0, 0, 0
         ),
-        room_requested: list[str] = [],
+        room_requested: Optional[list[str]] = [],
     ):
         result = get_availability(
             person_requested,
@@ -151,10 +169,14 @@ class TimetableAvailabilityTool(BaseTool):
 
     def _arun(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: Optional[list[str]] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        room_requested: Optional[list[str]] = [],
     ):
         raise NotImplementedError("This tool does not support async")
 
@@ -163,18 +185,18 @@ class TimetableAvailabilityTool(BaseTool):
 
 class TimetableFilterTool(BaseTool):
     name = "timetable_filter"
-    description = "Useful for when you need to filter the timetable to find a schedule for specific person, room or datetime based on user request"
+    description = "Useful for when you need to query the timetable for _specific_ person, room or datetime based on user request"
 
     def _run(
         self,
-        person_requested: list[str] = [],
+        person_requested: Optional[list[str]] = [],
         datetime_start_requested: datetime.datetime = datetime.datetime(
             1970, 1, 1, 0, 0, 0
         ),
         datetime_end_requested: datetime.datetime = datetime.datetime(
             9999, 1, 1, 0, 0, 0
         ),
-        room_requested: list[str] = [],
+        room_requested: Optional[list[str]] = [],
     ):
         result = filter_timetable(
             person_requested,
@@ -187,10 +209,14 @@ class TimetableFilterTool(BaseTool):
 
     def _arun(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: Optional[list[str]] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            9999, 1, 1, 0, 0, 0
+        ),
+        room_requested: Optional[list[str]] = [],
     ):
         raise NotImplementedError("This tool does not support async")
 
@@ -203,14 +229,14 @@ class TimetableConflictCheckerTool(BaseTool):
 
     def _run(
         self,
-        person_requested: list[str] = [],
+        person_requested: Optional[list[str]] = [],
         datetime_start_requested: datetime.datetime = datetime.datetime(
             1970, 1, 1, 0, 0, 0
         ),
         datetime_end_requested: datetime.datetime = datetime.datetime(
             1970, 1, 1, 0, 0, 0
         ),
-        room_requested: list[str] = [],
+        room_requested: Optional[list[str]] = [],
     ):
         result = get_conflict_status(
             person_requested,
@@ -223,10 +249,14 @@ class TimetableConflictCheckerTool(BaseTool):
 
     def _arun(
         self,
-        person_requested: list[str],
-        datetime_start_requested: datetime.datetime,
-        datetime_end_requested: datetime.datetime,
-        room_requested: list[str],
+        person_requested: Optional[list[str]] = [],
+        datetime_start_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        datetime_end_requested: datetime.datetime = datetime.datetime(
+            1970, 1, 1, 0, 0, 0
+        ),
+        room_requested: Optional[list[str]] = [],
     ):
         raise NotImplementedError("This tool does not support async")
 

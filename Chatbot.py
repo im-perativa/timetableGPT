@@ -1,8 +1,9 @@
+import random
+import string
 import time
 
 import streamlit as st
-from langchain.agents import AgentExecutor
-from langchain.agents.openai_functions_agent.base import OpenAIFunctionsAgent
+from langchain.agents import AgentType, initialize_agent
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import MessagesPlaceholder
@@ -11,35 +12,31 @@ from langchain.tools import format_tool_to_openai_function
 from streamlit_chat import message
 
 from components.about import about
-from utils.tools import (
-    TimetableAvailabilityTool,
-    TimetableConflictCheckerTool,
-    TimetableFilterTool,
-)
+from utils.tools import TimetableAvailabilityTool, TimetableFilterTool
 
 tools = [
-    TimetableConflictCheckerTool(),
     TimetableAvailabilityTool(),
     TimetableFilterTool(),
 ]
 functions = [format_tool_to_openai_function(tool) for tool in tools]
 
-prompt = OpenAIFunctionsAgent.create_prompt(
-    system_message=SystemMessage(
+agent_kwargs = {
+    "system_message": SystemMessage(
         content="""
-        You are a helpful assistant who is expert with time management and can handle multiple PERSON and/or ROOM schedule so that no schedule will overlap each other.
-        You DO NOT answer anything unrelated to timetable and politely informs that you are programmed to only answer timetable related questions.
-        ============
-        While helping USER managing Timetable, keep in mind that:
-        1 - USER cannot schedule to occupy a ROOM if the ROOM is still unavailable based on the Timetable.
-        2 - USER cannot schedule a meeting with a PERSON if the PERSON is still unavailable based on the Timetable.
-        3 - Similarly, each PERSON listed in the Timetable cannot schedule to meet with other PERSON if one of them is unavailable.
-        4 - Outside of the schedule information listed in the Timetable, all PERSON and all ROOM listed in the Timetable is available.
-        ============
-        Before giving your answer, make sure to check if there is a conflict between user request and existing timetable configuration.
-        """
-    )
-)
+    You are a helpful assistant who is expert with time management and can handle multiple PERSON and/or ROOM schedule so that no schedule will overlap each other.
+    You DO NOT answer anything unrelated to timetable and politely informs that you are programmed to only answer timetable related questions.
+    ============
+    While helping USER managing Timetable, keep in mind that:
+    1 - USER cannot request to occupy a ROOM if there is an overlap between occupied time range and requested time range.
+    2 - USER cannot request to meet with a PERSON if there is an overlap between occupied time range and requested time range.
+    3 - Similarly, each PERSON listed in the Timetable cannot request to meet with other PERSON if one of them is unavailable.
+    4 - Outside of the schedule information listed in the Timetable, all PERSON and all ROOM listed in the Timetable is considered as available.
+    ============
+    Before giving your answer, make sure your answer _DOES NOT result in overlaps_ between user request and existing timetable configuration.
+    """
+    ),
+    "extra_prompt_messages": [MessagesPlaceholder(variable_name="memory")],
+}
 
 
 def callback_function(state, key):
@@ -89,11 +86,17 @@ elif st.session_state["timetable"].shape[0] == 0:
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = [
-        {"role": "assistant", "content": "How can I help you?"}
+        {
+            "role": "assistant",
+            "content": "How can I help you?",
+            "key": str(time.time_ns()),
+        }
     ]
 
-if "chat_history" not in st.session_state:
-    st.session_state["chat_history"] = []
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationBufferMemory(
+        memory_key="memory", return_messages=True
+    )
 
 with st.form("chat_input", clear_on_submit=True):
     a, b = st.columns([4, 1])
@@ -105,7 +108,11 @@ with st.form("chat_input", clear_on_submit=True):
     b.form_submit_button("Send", use_container_width=True)
 
 for msg in st.session_state["messages"]:
-    message(msg["content"], is_user=msg["role"] == "user")
+    message(
+        msg["content"],
+        is_user=msg["role"] == "user",
+        key="".join(random.choices(string.ascii_lowercase, k=5)),
+    )
 
 if user_input and not openai_api_key:
     st.info("Please add your OpenAI API key to continue.")
@@ -113,27 +120,18 @@ if user_input and not openai_api_key:
 if openai_api_key:
     llm = ChatOpenAI(
         client="TimetableGPT",
-        temperature=0,
-        model="gpt-3.5-turbo-0613",
+        temperature=0.5,
+        model="gpt-3.5-turbo-16k-0613",
         openai_api_key=openai_api_key,
     )
 
-    agent_kwargs = {
-        "extra_prompt_messages": [MessagesPlaceholder(variable_name="chat_history")],
-    }
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-    open_ai_agent = OpenAIFunctionsAgent(
-        tools=tools,
-        llm=llm,
-        prompt=prompt,
-    )
-
-    open_ai_agent_executor = AgentExecutor.from_agent_and_tools(
-        agent=open_ai_agent,
-        tools=tools,
+    open_ai_agent_executor = initialize_agent(
+        tools,
+        llm,
+        agent=AgentType.OPENAI_FUNCTIONS,
         verbose=True,
-        memory=memory,
-        kwargs=agent_kwargs,
+        agent_kwargs=agent_kwargs,
+        memory=st.session_state["memory"],
     )
 
 
