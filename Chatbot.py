@@ -1,9 +1,6 @@
-import random
-import string
-import time
-
 import streamlit as st
 from langchain.agents import AgentType, initialize_agent
+from langchain.callbacks import StreamlitCallbackHandler
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import MessagesPlaceholder
@@ -50,6 +47,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+st_callback = StreamlitCallbackHandler(
+    st.container(), collapse_completed_thoughts=False
+)
+
 if "openai_api_key_value" not in st.session_state:
     st.session_state["openai_api_key_value"] = ""
 
@@ -85,36 +86,18 @@ elif st.session_state["timetable"].shape[0] == 0:
     st.error("Please input your Timetable first")
 
 if "messages" not in st.session_state:
-    st.session_state["messages"] = [
-        {
-            "role": "assistant",
-            "content": "How can I help you?",
-            "key": str(time.time_ns()),
-        }
-    ]
+    st.session_state.messages = []
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
         memory_key="memory", return_messages=True
     )
 
-with st.form("chat_input", clear_on_submit=True):
-    a, b = st.columns([4, 1])
-    user_input = a.text_input(
-        label="Your message:",
-        placeholder="What would you like to know about the Timetable?",
-        label_visibility="collapsed",
-    )
-    b.form_submit_button("Send", use_container_width=True)
-
-for msg in st.session_state["messages"]:
-    message(
-        msg["content"],
-        is_user=msg["role"] == "user",
-        key="".join(random.choices(string.ascii_lowercase, k=5)),
-    )
-
-if user_input and not openai_api_key:
+if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.")
 
 if openai_api_key:
@@ -123,6 +106,7 @@ if openai_api_key:
         temperature=0.5,
         model="gpt-3.5-turbo-16k-0613",
         openai_api_key=openai_api_key,
+        streaming=True,
     )
 
     open_ai_agent_executor = initialize_agent(
@@ -134,14 +118,14 @@ if openai_api_key:
         memory=st.session_state["memory"],
     )
 
+    if prompt := st.chat_input("What is up?"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-def generate_response(input_text):
-    return open_ai_agent_executor.run(input_text)
-
-
-if user_input and openai_api_key:
-    st.session_state["messages"].append({"role": "user", "content": user_input})
-    message(user_input, is_user=True, key=str(time.time_ns()))
-    response = generate_response(user_input)
-    st.session_state["messages"].append({"role": "assistant", "content": response})
-    message(response, key=str(time.time_ns()))
+        with st.chat_message("assistant"):
+            message_placeholder = st.empty()
+            st_callback = StreamlitCallbackHandler(st.container())
+            response = open_ai_agent_executor.run(prompt, callbacks=[st_callback])
+            message_placeholder.markdown(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
