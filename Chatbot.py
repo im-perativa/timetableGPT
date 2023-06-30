@@ -6,9 +6,9 @@ from langchain.memory import ConversationBufferMemory
 from langchain.prompts import MessagesPlaceholder
 from langchain.schema import SystemMessage
 from langchain.tools import format_tool_to_openai_function
-from streamlit_chat import message
 
 from components.about import about
+from components.timetable import timetable
 from utils.tools import TimetableAvailabilityTool, TimetableFilterTool
 
 tools = [
@@ -80,6 +80,11 @@ with st.sidebar:
 
 st.title("📆Timetable GPT")
 
+tab1, tab2 = st.tabs(["Chat", "Timetable"])
+
+with tab2:
+    timetable()
+
 if "timetable" not in st.session_state:
     st.error("Please input your Timetable first")
 elif st.session_state["timetable"].shape[0] == 0:
@@ -89,16 +94,14 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    with tab1:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
         memory_key="memory", return_messages=True
     )
-
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.")
 
 if openai_api_key:
     llm = ChatOpenAI(
@@ -118,7 +121,11 @@ if openai_api_key:
         memory=st.session_state["memory"],
     )
 
-    if prompt := st.chat_input("What is up?"):
+if prompt := st.chat_input("Ask me about the timetable"):
+    with tab1:
+        if not open_ai_agent_executor:
+            st.info("Please add your OpenAI API key to continue.")
+
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
