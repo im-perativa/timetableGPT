@@ -32,11 +32,11 @@ class TimetableCheckInput(BaseModel):
     )
     datetime_start_requested: Optional[datetime.datetime] = Field(
         default=datetime.datetime(1970, 1, 1, 0, 0, 0),
-        description="Start date and start time specification from user request",
+        description="Start date and start time specification",
     )
     datetime_end_requested: Optional[datetime.datetime] = Field(
         default=datetime.datetime(1970, 1, 1, 0, 0, 0),
-        description="End date and end time specification from user request",
+        description="End date and end time specification",
     )
     room_requested: Optional[list[str]] = Field(
         default=[], description="List of room name to search in the Timetable"

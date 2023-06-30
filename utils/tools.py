@@ -2,6 +2,7 @@ import datetime
 from typing import Optional, Type
 
 import streamlit as st
+from datetimerange import DateTimeRange
 from langchain.tools import BaseTool
 from pydantic import BaseModel
 
@@ -12,24 +13,17 @@ from utils.classes import TimetableCheckInput
 def _filter_intersection(
     timetable_df, datetime_start_requested, datetime_end_requested
 ):
-    return timetable_df[
-        (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] >= datetime_start_requested)
-            & (timetable_df["datetime_start"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_end"] >= datetime_start_requested)
-            & (timetable_df["datetime_end"] <= datetime_end_requested)
-        )
-        | (
-            (timetable_df["datetime_start"] <= datetime_start_requested)
-            & (timetable_df["datetime_end"] >= datetime_end_requested)
-        )
-    ].sort_values(["datetime_start", "datetime_end"])
+    timetable_df["intersection"] = timetable_df.apply(
+        lambda row: DateTimeRange(
+            row["datetime_start"], row["datetime_end"]
+        ).is_intersection(
+            DateTimeRange(datetime_start_requested, datetime_end_requested)
+        ),
+        axis=1,
+    )
+    return timetable_df[timetable_df["intersection"]].sort_values(
+        ["datetime_start", "datetime_end"]
+    )
 
 
 def get_availability(
@@ -81,12 +75,45 @@ def get_availability(
 
     return (
         initial_prompt
-        + "\n\nPerson inavailability list are specified below:\n\n```\n"
+        + "\n```\n\nPerson inavailability list are specified below:\n\n```\n"
         + "\n".join(person["prompt_person"].sort_values().unique())
         + "\n```\n\nRoom inavailability list are specified below:\n\n```\n"
         + "\n".join(room["prompt_room"].sort_values().unique())
-        + "\n```"
+        + "\n```\n"
     )
+
+
+def get_availability_json(
+    person_requested=[],
+    datetime_start_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    datetime_end_requested=datetime.datetime(1970, 1, 1, 0, 0, 0),
+    room_requested=[],
+):
+    timetable_df = st.session_state["timetable"]
+    list_all_person = list(timetable_df["person"].sort_values().unique())
+    list_all_room = list(timetable_df["room"].sort_values().unique())
+
+    if len(person_requested) > 0:
+        timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
+
+    if len(room_requested) > 0:
+        timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
+
+    timetable_intersect_df = _filter_intersection(
+        timetable_df, datetime_start_requested, datetime_end_requested
+    )
+
+    list_person_unavailable = list(
+        timetable_intersect_df["person"].sort_values().unique()
+    )
+    list_room_unavailable = list(timetable_intersect_df["room"].sort_values().unique())
+
+    return {
+        "list_all_person": list_all_person,
+        "list_all_room": list_all_room,
+        "list_person_unavailable": list_person_unavailable,
+        "list_room_unavailable": list_room_unavailable,
+    }
 
 
 def filter_timetable(
@@ -145,7 +172,7 @@ def get_conflict_status(
 # Tools
 class TimetableAvailabilityTool(BaseTool):
     name = "timetable_availability"
-    description = "Useful for when you need to find the availability of a person and/or room based on specific date and time from user request"
+    description = "Useful for when you need to find the availability of person and/or room(s) based on specific date and time"
 
     def _run(
         self,
@@ -185,7 +212,7 @@ class TimetableAvailabilityTool(BaseTool):
 
 class TimetableFilterTool(BaseTool):
     name = "timetable_filter"
-    description = "Useful for when you need to query the timetable for _specific_ person, room or datetime based on user request"
+    description = "Useful for when you need to query the timetable for specific person, room or datetime based on user request"
 
     def _run(
         self,
