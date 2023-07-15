@@ -12,7 +12,8 @@ def timetable():
     )
 
     dataframe = pd.read_excel(
-        "sample.xlsx", parse_dates=["datetime_start", "datetime_end"]
+        "sample.xlsx",
+        parse_dates=["datetime_start", "datetime_end"],
     )
 
     if uploaded_file is not None:
@@ -23,6 +24,10 @@ def timetable():
         dataframe = st.session_state["timetable"][
             ["person", "datetime_start", "datetime_end", "room"]
         ]
+
+    dataframe.sort_values(
+        ["datetime_start", "datetime_end", "person", "room"], inplace=True
+    )
 
     timetable_df = st.data_editor(
         dataframe,

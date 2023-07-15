@@ -44,3 +44,19 @@ class TimetableCheckInput(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+
+class TimetablePostInput(BaseModel):
+    """Input for Timetable check."""
+
+    person_requested: str = Field(description="Person name to put in the Timetable")
+    datetime_start_requested: datetime.datetime = Field(
+        description="Start date and start time specification",
+    )
+    datetime_end_requested: datetime.datetime = Field(
+        description="End date and end time specification",
+    )
+    room_requested: str = Field(description="Room name to put in the Timetable")
+
+    class Config:
+        arbitrary_types_allowed = True
