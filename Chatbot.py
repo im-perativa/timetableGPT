@@ -11,7 +11,7 @@ from langchain.tools import format_tool_to_openai_function
 
 from components.about import about
 from components.timetable import timetable
-from utils.fewshots import example_1
+from utils.fewshots import example_1, example_2, example_3
 from utils.tools import (
     TimetableAvailabilityTool,
     TimetableDeleteTool,
@@ -48,6 +48,8 @@ State your reasoning to the USER for every answer you give."""
     "extra_prompt_messages": [
         # Few shot examples
         *example_1,
+        *example_2,
+        *example_3,
         MessagesPlaceholder(variable_name="memory"),
     ],
 }
@@ -129,7 +131,7 @@ if prompt := st.chat_input("Ask me about the timetable"):
 
         llm = ChatOpenAI(
             client="TimetableGPT",
-            temperature=0.5,
+            temperature=0,
             model="gpt-3.5-turbo-16k-0613",
             openai_api_key=openai_api_key,
             streaming=True,

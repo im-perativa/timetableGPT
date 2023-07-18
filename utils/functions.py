@@ -41,8 +41,7 @@ def get_availability(
 
     if person_requested:
         timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
-
-    if person_requested:
+    if room_requested:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
     timetable_intersect_df = __filter_intersection(
@@ -92,8 +91,7 @@ def get_availability_json(
 
     if person_requested:
         timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
-
-    if person_requested:
+    if room_requested:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
     timetable_intersect_df = __filter_intersection(
@@ -122,7 +120,7 @@ def get_timetable(
     timetable_df = st.session_state["timetable"]
     if person_requested:
         timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
-    if person_requested:
+    if room_requested:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
     timetable_df = (
@@ -188,7 +186,7 @@ def delete_timetable(
     timetable_df = st.session_state["timetable"]
     if person_requested:
         timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
-    if person_requested:
+    if room_requested:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
     timetable_df = __filter_intersection(
@@ -213,7 +211,7 @@ def get_conflict_status(
 
     if person_requested:
         timetable_df = timetable_df[timetable_df["person"].isin(person_requested)]
-    if person_requested:
+    if room_requested:
         timetable_df = timetable_df[timetable_df["room"].isin(room_requested)]
 
     timetable_df = __filter_intersection(

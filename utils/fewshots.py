@@ -55,15 +55,41 @@ Room inavailability based on user requested time range are specified below:
 
 example_2 = [
     HumanMessage(
-        content="list the schedule for Abdirahman Castaneda on February 6th, 2023",
+        content="create a schedule for Person X on 6th February from 10am to 12pm in room Alpha",
         additional_kwargs={"name": "example_user_2"},
     ),
     AIMessage(
-        content="""{'name': 'timetable_availability', 'arguments': '{\
+        content="""{'name': 'timetable_post', 'arguments': '{\
+  \"person_requested\": \"Person X\",\
   \"datetime_start_requested\": \"2023-02-06T10:00:00\",\
-  \"datetime_end_requested\": \"2023-02-06T12:00:00\"\
+  \"datetime_end_requested\": \"2023-02-06T12:00:00\",\
+  \"room_requested\": \"Alpha\"\
 }'}""",
         additional_kwargs={"name": "example_ai_2"},
+    ),
+    FunctionMessage(
+        content="New schedule successfuly added to the Timetable",
+        name="timetable_post",
+        additional_kwargs={"name": "example_function_2"},
+    ),
+    AIMessage(
+        content="I have successfully created a schedule for Person X on 6th February from 10am to 12pm in room Alpha",
+        additional_kwargs={"name": "example_assistant_2"},
+    ),
+]
+
+example_3 = [
+    HumanMessage(
+        content="what is the best time to arrange a 30 minutes meeting with Anna Koch and Wilson Cole on February 6th 2023?",
+        additional_kwargs={"name": "example_user_3"},
+    ),
+    AIMessage(
+        content="""{'name': 'timetable_availability', 'arguments': '{\
+  \"person_requested\": [\"Anna Koch\", \"Person X\", \"Wilson Cole\"],\
+  \"datetime_start_requested\": \"2023-02-06T00:00:00\",\
+  \"datetime_end_requested\": \"2023-02-06T23:59:59\"\
+}'}""",
+        additional_kwargs={"name": "example_ai_3"},
     ),
     FunctionMessage(
         content="""
@@ -71,6 +97,8 @@ List of person in the Timetable are:
 ```
 - Abby Montgomery
 - Abdirahman Castaneda
+- Anna Koch
+- Wilson Cole
 ```
 
 List of room in the Timetable are:
@@ -83,10 +111,10 @@ List of room in the Timetable are:
 Person inavailability based on user requested time range are specified below:
 
 ```
-- Abby Montgomery is unavailable/occupied from:
+- Anna Koch is unavailable/occupied from:
 -- 09:10:00 to 10:50:00
 -- 11:00:00 to 12:40:00
-- Abdirahman Castaneda is unavailable/occupied from:
+- Wilson Cole is unavailable/occupied from:
 -- 10:10:00 to 12:40:00
 ```
 
@@ -98,10 +126,10 @@ Room inavailability based on user requested time range are specified below:
 ```
 """,
         name="timetable_availability",
-        additional_kwargs={"name": "example_function_2"},
+        additional_kwargs={"name": "example_function_3"},
     ),
     AIMessage(
-        content="Abdirahman Castaneda is unavailable/occupied from 10:10:00 to 12:40:00",
-        additional_kwargs={"name": "example_assistant_2"},
+        content="Based on the availability of Anna Koch and Wilson Cole, the best time to arrange 30 minutes for them is at 8.00 am to 9.30 am",
+        additional_kwargs={"name": "example_assistant_3"},
     ),
 ]
