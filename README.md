@@ -11,10 +11,12 @@ The Timetable consists of four columns:
 
 ## ❔Example questions you can ask
 
+- Create a schedule for `Person A` on February, 6th 2023 from 10am to 12pm
+- List all schedule of `Person A` on February, 6th 2023
+- Delete all schedule for `Person A`
 - List all unoccupied room on February, 6th 2023 from 10am to 12pm
 - Can I use `Room x` on February, 6th 2023 from 1.00 pm for 31 minutes?
-- What is the best time to arrange a 1 hour meeting between `Person A`, `Person B` and `Person C` on February, 6th 2023? 
-- List all schedule of `Person A` on February, 6th 2023
+- What is the best time to arrange a 60 minutes meeting between `Person A`, `Person B` and `Person C` on February, 6th 2023? 
 - etc
 
 ## 🌏Demo App
