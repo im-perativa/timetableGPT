@@ -85,6 +85,9 @@ with st.sidebar:
         if "openai_api_key_value" in st.session_state
         else "",
     )
+    model = st.selectbox(
+        "OpenAI Model:", ("gpt-4", "gpt-3.5-turbo-16k", "gpt-3.5-turbo")
+    )
     st.markdown(
         "# How to use\n"
         "1. Enter your [OpenAI API key](https://platform.openai.com/account/api-keys) below🔑\n"
@@ -132,7 +135,7 @@ if prompt := st.chat_input("Ask me about the timetable"):
         llm = ChatOpenAI(
             client="TimetableGPT",
             temperature=0,
-            model="gpt-3.5-turbo-16k-0613",
+            model=str(model),
             openai_api_key=openai_api_key,
             streaming=True,
         )
