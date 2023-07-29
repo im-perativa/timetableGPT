@@ -1,3 +1,5 @@
+import os
+
 import langchain
 import streamlit as st
 from langchain.agents import AgentType, initialize_agent
@@ -18,6 +20,10 @@ from utils.tools import (
     TimetableGetTool,
     TimetablePostTool,
 )
+
+os.environ["LANGCHAIN_TRACING_V2"] = st.secrets["LANGCHAIN_TRACING_V2"]
+os.environ["LANGCHAIN_ENDPOINT"] = st.secrets["LANGCHAIN_ENDPOINT"]
+os.environ["LANGCHAIN_API_KEY"] = st.secrets["LANGCHAIN_API_KEY"]
 
 langchain.debug = True
 
