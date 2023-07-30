@@ -12,6 +12,7 @@ from langchain.schema import SystemMessage
 from langchain.tools import format_tool_to_openai_function
 
 from components.about import about
+from components.calendar import calendar
 from components.timetable import timetable
 from utils.fewshots import example_1, example_2, example_3
 from utils.tools import (
@@ -94,6 +95,9 @@ with st.sidebar:
     model = st.selectbox(
         "OpenAI Model:", ("gpt-4", "gpt-3.5-turbo-16k", "gpt-3.5-turbo")
     )
+
+    calendar_mode = st.selectbox("Calendar Mode:", ("Room", "Person"))
+
     st.markdown(
         "# How to use\n"
         "1. Enter your [OpenAI API key](https://platform.openai.com/account/api-keys) below🔑\n"
@@ -108,10 +112,14 @@ with st.sidebar:
 
 st.title("📆Timetable GPT")
 
-tab1, tab2 = st.tabs(["Chat", "Timetable"])
+tab1, tab2, tab3 = st.tabs(["Chat", "Calendar", "Timetable"])
+
+with tab3:
+    timetable()
 
 with tab2:
-    timetable()
+    calendar(mode=str(calendar_mode))
+
 
 if "timetable" not in st.session_state:
     st.error("Please input your Timetable first")
