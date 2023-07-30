@@ -49,6 +49,18 @@ def calendar(mode: str = "Room"):
         <head>
             <meta charset='utf-8' />
             <script src='https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.8/index.global.min.js'></script>
+            <style>
+                .fc {{
+                    font-family: "Source Sans Pro", sans-serif;
+                }}
+                .fc table {{
+                    color: #FF4B4B;
+                    font-size: 14px;
+                }}
+                .fc-toolbar-title {{
+                    color: #FF4B4B;
+                }}
+            </style>
             <script>
 
             document.addEventListener('DOMContentLoaded', function() {{
