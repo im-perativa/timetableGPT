@@ -1,8 +1,8 @@
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit_calendar import calendar
 
 
-def calendar(mode: str = "Room"):
+def calendarComponent(mode: str = "Room"):
     event_data = st.session_state["timetable"].copy()
 
     event_data["datetime_start"] = event_data["datetime_start"].dt.strftime(
@@ -41,54 +41,22 @@ def calendar(mode: str = "Room"):
             }
         )
 
-    event_data_json = event_data.to_json(orient="records")
+    event_data_dict = event_data.to_dict(orient="records")
 
-    components.html(
-        f"""
-    <html lang='en'>
-        <head>
-            <meta charset='utf-8' />
-            <script src='https://cdn.jsdelivr.net/npm/fullcalendar-scheduler@6.1.8/index.global.min.js'></script>
-            <style>
-                .fc {{
-                    font-family: "Source Sans Pro", sans-serif;
-                }}
-                .fc table {{
-                    color: #FF4B4B;
-                    font-size: 14px;
-                }}
-                .fc-toolbar-title {{
-                    color: #FF4B4B;
-                }}
-            </style>
-            <script>
-
-            document.addEventListener('DOMContentLoaded', function() {{
-                var calendarEl = document.getElementById('calendar');
-                var calendar = new FullCalendar.Calendar(calendarEl, {{
-                    height: 520,
-                    initialDate: '{initial_date}',
-                    initialView: 'resourceTimelineDay',
-                    hiddenDays: [0,6],
-                    slotMinTime: '06:00:00',
-                    slotMaxtime: '17:00:00',
-                    headerToolbar: {{
-                        left: 'prev,next today',
-                        center: 'title',
-                        right: 'resourceTimelineMonth,resourceTimelineWeek,resourceTimelineDay'
-                    }},
-                    resources: {str(resources)},
-                    events: {str(event_data_json)}
-                }});
-                calendar.render();
-            }});
-
-            </script>
-        </head>
-        <body>
-            <div id='calendar'></div>
-        </body>
-    </html>
-    """,
-        height=520,
+    calendar(
+        events=event_data_dict,
+        options={
+            "height": 520,
+            "initialDate": initial_date,
+            "initialView": "resourceTimelineDay",
+            "hiddenDays": [0, 6],
+            "slotMinTime": "06:00:00",
+            "slotMaxTime": "18:00:00",
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "resourceTimelineMonth,resourceTimelineWeek,resourceTimelineDay",
+            },
+            "resources": resources,
+        },
     )

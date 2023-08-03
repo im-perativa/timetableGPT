@@ -12,7 +12,7 @@ from langchain.schema import SystemMessage
 from langchain.tools import format_tool_to_openai_function
 
 from components.about import about
-from components.calendar import calendar
+from components.calendar import calendarComponent
 from components.timetable import timetable
 from utils.fewshots import example_1, example_2, example_3
 from utils.tools import (
@@ -118,7 +118,7 @@ with tab3:
     timetable()
 
 with tab2:
-    calendar(mode=str(calendar_mode))
+    calendarComponent(mode=str(calendar_mode))
 
 
 if "timetable" not in st.session_state:
